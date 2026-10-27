@@ -1,0 +1,1217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BC App Compare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: compare workbench — two package slots on top, object tree on the left, aligned side-by-side diff on the right */
+:root{
+  --bg:#f2f4f6; --panel:#ffffff; --panel-2:#eceff3; --line:#d7dde3; --fg:#18212b; --muted:#5b6774;
+  --accent:#0e6a77; --accent-fg:#ffffff; --accent-soft:#dfeef0;
+  --add:#1c7436; --add-bg:#e2f3e6; --add-strong:#afe0bb;
+  --del:#b3261e; --del-bg:#fbe8e6; --del-strong:#f1b9b3;
+  --mod:#9a5800; --mod-bg:#fcefd8;
+  --same:#6f7b88; --same-bg:#e8ebef;
+  --kw:#7b3aa0; --str:#a2410e; --com:#5b7a4b; --num:#0a6b96; --qid:#1d4f8c; --typ:#0e6a77;
+  --sans:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, Consolas, 'Cascadia Mono', monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f141a; --panel:#161d25; --panel-2:#1c252f; --line:#2b3642; --fg:#dce3eb; --muted:#8b97a5;
+  --accent:#43b4c2; --accent-fg:#06161a; --accent-soft:#15333a;
+  --add:#62cf82; --add-bg:#132d1c; --add-strong:#22512f;
+  --del:#ff8b80; --del-bg:#371818; --del-strong:#682520;
+  --mod:#f0b55c; --mod-bg:#36280f;
+  --same:#8592a0; --same-bg:#222b35;
+  --kw:#c99cf2; --str:#f0a172; --com:#819e74; --num:#6dc3e8; --qid:#90b9f2; --typ:#5fc9d3;
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0f141a; --panel:#161d25; --panel-2:#1c252f; --line:#2b3642; --fg:#dce3eb; --muted:#8b97a5;
+  --accent:#43b4c2; --accent-fg:#06161a; --accent-soft:#15333a;
+  --add:#62cf82; --add-bg:#132d1c; --add-strong:#22512f;
+  --del:#ff8b80; --del-bg:#371818; --del-strong:#682520;
+  --mod:#f0b55c; --mod-bg:#36280f;
+  --same:#8592a0; --same-bg:#222b35;
+  --kw:#c99cf2; --str:#f0a172; --com:#819e74; --num:#6dc3e8; --qid:#90b9f2; --typ:#5fc9d3;
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.app{height:100%;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);gap:10px;padding-inline:16px;padding-block:12px 14px}
+
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand h1{margin:0;font-size:18px;font-weight:700;letter-spacing:-.01em}
+.brand h1 span{color:var(--accent)}
+.brand p{margin:0;color:var(--muted);font-size:13px}
+.top-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--panel);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:default;border-color:var(--line)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:500}
+
+.slots{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px}
+.slot{border:1.5px dashed var(--line);border-radius:8px;background:var(--panel);padding:10px 14px;display:flex;gap:14px;align-items:center;min-width:0;transition:border-color .15s,background .15s}
+.slot.filled{border-style:solid}
+.slot.drag{border-color:var(--accent);background:var(--accent-soft)}
+.slot .info{min-width:0;flex:1;display:grid;gap:1px}
+.side-tag{font:600 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.side-tag em{font-style:normal;color:var(--accent)}
+.pkg-name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pkg-name .ver{font:500 13px var(--mono);color:var(--accent);margin-left:6px}
+.pkg-meta{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pkg-err{font-size:12.5px;color:var(--del)}
+.slot .acts{display:flex;gap:6px;flex:none}
+.swap{align-self:center;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:15px;display:grid;place-items:center}
+.swap:hover{border-color:var(--accent)}
+
+.banner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--accent-soft);border-radius:6px;padding:7px 12px;font-size:13px}
+.banner b{font-weight:600}
+
+.work{display:grid;grid-template-columns:330px minmax(0,1fr);gap:10px;min-height:0}
+.side,.view{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;min-height:0;display:flex;flex-direction:column}
+.view{min-width:0}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line)}
+.chip{border:0;border-right:1px solid var(--line);background:none;padding:7px 4px 6px;cursor:pointer;display:grid;justify-items:center;gap:0}
+.chip:last-child{border-right:0}
+.chip b{font:600 18px/1.2 var(--mono);font-variant-numeric:tabular-nums}
+.chip span{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.chip.added b{color:var(--add)} .chip.removed b{color:var(--del)} .chip.modified b{color:var(--mod)} .chip.same b{color:var(--same)}
+.chip[aria-pressed="false"]{opacity:.38}
+.chip:hover{background:var(--panel-2)}
+.searchbar{padding:8px;border-bottom:1px solid var(--line)}
+.searchbar input{width:100%;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:13px var(--sans)}
+.tree{overflow:auto;flex:1;min-height:0;padding-bottom:8px}
+.ghead{display:flex;align-items:center;gap:6px;width:100%;border:0;background:var(--panel-2);padding:5px 10px;font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);cursor:pointer;position:sticky;top:0;z-index:1;text-align:left}
+.ghead .chev{display:inline-block;width:10px;transition:transform .15s}
+.ghead.closed .chev{transform:rotate(-90deg)}
+.ghead .cnt{margin-left:auto;font:500 11px var(--mono);letter-spacing:0;text-transform:none}
+.row{display:grid;grid-template-columns:18px 50px minmax(0,1fr);gap:6px;align-items:center;width:100%;border:0;background:none;padding:3px 10px;text-align:left;cursor:pointer;font-size:13px}
+.row.noid{grid-template-columns:18px minmax(0,1fr)}
+.row:hover{background:var(--panel-2)}
+.row.sel{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.row .id{font:12px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.same .nm{color:var(--muted)}
+.st{width:16px;height:16px;border-radius:3px;display:inline-grid;place-items:center;font:700 11px/1 var(--mono)}
+.st.added{background:var(--add-bg);color:var(--add)} .st.removed{background:var(--del-bg);color:var(--del)}
+.st.modified{background:var(--mod-bg);color:var(--mod)} .st.same{background:var(--same-bg);color:var(--same)}
+.tree-empty{padding:20px 14px;color:var(--muted);font-size:13px}
+
+.vhead{padding:9px 14px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.vhead h2{margin:0;font-size:16px;font-weight:600;min-width:0;overflow-wrap:anywhere}
+.typebadge{font:600 10.5px var(--mono);text-transform:uppercase;letter-spacing:.07em;padding:2px 7px;border-radius:4px;background:var(--panel-2);color:var(--muted)}
+.vid{font:500 14px var(--mono);color:var(--muted)}
+.pill{font-size:11.5px;padding:1px 9px;border-radius:10px;font-weight:600}
+.pill.added{background:var(--add-bg);color:var(--add)} .pill.removed{background:var(--del-bg);color:var(--del)}
+.pill.modified{background:var(--mod-bg);color:var(--mod)} .pill.same{background:var(--same-bg);color:var(--same)}
+.note{font-size:12px;color:var(--mod)}
+.paths{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:14px;font:11.5px var(--mono);color:var(--muted)}
+.paths span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vtools{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:5px 10px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.tabs{display:flex;gap:2px}
+.tab{border:0;background:none;padding:4px 11px;border-radius:5px;cursor:pointer;font-weight:500;font-size:13px;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--panel);color:var(--fg);box-shadow:0 0 0 1px var(--line)}
+.tab:disabled{opacity:.4;cursor:default}
+.opts{display:flex;gap:12px;flex-wrap:wrap}
+.toggle{display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap}
+.toggle input{accent-color:var(--accent);margin:0}
+.nav{display:flex;gap:4px;align-items:center;margin-left:auto}
+.nav .btn{padding:3px 9px}
+.counter{font:12px var(--mono);color:var(--muted);min-width:11ch;text-align:center;font-variant-numeric:tabular-nums}
+.vbody{flex:1;min-height:0;display:flex}
+.diffwrap{flex:1;overflow:auto;min-width:0}
+.ruler{width:13px;position:relative;border-left:1px solid var(--line);background:var(--panel-2);flex:none}
+.ruler i{position:absolute;left:2px;right:2px;min-height:3px;border-radius:1px;cursor:pointer}
+.ruler i.del{background:var(--del)} .ruler i.add{background:var(--add)} .ruler i.chg{background:var(--mod)}
+.struct{flex:1;overflow:auto;padding:12px 16px 20px;min-width:0}
+
+table.diff{width:100%;border-collapse:collapse;table-layout:fixed;font:12.5px/1.55 var(--mono)}
+table.diff col.ln{width:3.8em}
+.diff td{vertical-align:top;padding:0 8px}
+.diff td.ln{text-align:right;color:var(--muted);user-select:none;padding:0 7px 0 4px;font-variant-numeric:tabular-nums;background:var(--panel-2);font-size:11.5px}
+.diff td.cd{white-space:pre-wrap;word-break:break-all;overflow-wrap:anywhere}
+.diff td.cd.L{border-right:1px solid var(--line)}
+.r-del td.cd.L,.r-chg td.cd.L{background:var(--del-bg)}
+.r-add td.cd.R,.r-chg td.cd.R{background:var(--add-bg)}
+.diff td.gap{background:repeating-linear-gradient(135deg,var(--panel-2) 0 5px,var(--panel) 5px 10px)}
+.diff mark{color:inherit;border-radius:2px;padding:0}
+.diff td.L mark{background:var(--del-strong)}
+.diff td.R mark{background:var(--add-strong)}
+.diff tr.cur td.ln{background:var(--accent);color:var(--accent-fg)}
+.diff tr.fold td{padding:1px 8px;background:var(--panel-2);text-align:center;border-block:1px solid var(--line)}
+.fold button{border:0;background:none;color:var(--accent);cursor:pointer;font:12px var(--sans);padding:2px 8px}
+.fold button:hover{text-decoration:underline}
+.k{color:var(--kw);font-weight:500} .s{color:var(--str)} .c{color:var(--com);font-style:italic} .n{color:var(--num)} .q{color:var(--qid)} .y{color:var(--typ)}
+
+.msg{margin:auto;max-width:46ch;text-align:center;color:var(--muted);padding:28px 16px;display:grid;gap:8px;justify-items:center}
+.msg h3{margin:0;color:var(--fg);font-size:16px;font-weight:600}
+.msg p{margin:0}
+.notice{padding:6px 12px;font-size:12.5px;background:var(--mod-bg);color:var(--mod)}
+
+.struct h3{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:18px 0 6px;font-weight:600;display:flex;gap:8px;align-items:baseline}
+.struct h3:first-child{margin-top:0}
+.struct h3 small{text-transform:none;letter-spacing:0;font-weight:400}
+.tw{overflow-x:auto}
+table.sd{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+.sd th{text-align:left;font-weight:600;font-size:11.5px;color:var(--muted);padding:5px 8px;border-bottom:1px solid var(--line)}
+.sd td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.sd td.v{font:12px/1.5 var(--mono);overflow-wrap:anywhere;width:34%}
+.sd td.it{font-weight:500;overflow-wrap:anywhere}
+.sd tr.removed td.v.l{background:var(--del-bg)} .sd tr.added td.v.r{background:var(--add-bg)}
+.sd tr.modified td.v.l{background:var(--del-bg)} .sd tr.modified td.v.r{background:var(--add-bg)}
+.struct .ok{color:var(--muted);font-size:13px;margin:0}
+
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:7px 14px;border-radius:6px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.on{opacity:1}
+kbd{font:11px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px;background:var(--panel)}
+
+@media (max-width:860px){
+  .app{height:auto;display:flex;flex-direction:column}
+  .slots{grid-template-columns:1fr}
+  .swap{justify-self:center;transform:rotate(90deg)}
+  .work{grid-template-columns:1fr}
+  .side{max-height:46vh}
+  .view{height:80vh}
+  .paths{grid-template-columns:1fr;gap:2px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>BC App <span>Compare</span></h1>
+      <p>Side-by-side diff of two Business Central .app packages</p>
+    </div>
+    <div class="top-actions">
+      <button class="btn" id="copyBtn" type="button">Copy summary</button>
+      <button class="btn" id="csvBtn" type="button">Download CSV</button>
+    </div>
+  </header>
+
+  <section class="slots" aria-label="Packages">
+    <div class="slot" id="slotL" data-side="L"></div>
+    <button class="swap" id="swapBtn" type="button" title="Swap left and right" aria-label="Swap left and right">⇄</button>
+    <div class="slot" id="slotR" data-side="R"></div>
+  </section>
+
+  <div class="banner" id="banner" hidden>
+    <span>This is a built-in <b>example</b> (a fictional Customer Loyalty extension, v1.0 vs v1.1). Drop your own two <b>.app</b> files on the boxes above to compare them.</span>
+  </div>
+
+  <main class="work">
+    <aside class="side" aria-label="Objects">
+      <div class="summary" id="summary"></div>
+      <div class="searchbar"><input type="search" id="search" placeholder="Filter by name, ID or path" aria-label="Filter objects"></div>
+      <div class="tree" id="tree"></div>
+    </aside>
+    <section class="view" id="view"></section>
+  </main>
+</div>
+<input type="file" id="fileL" accept=".app" hidden>
+<input type="file" id="fileR" accept=".app" hidden>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ---------- object types ---------- */
+const TYPE_INFO = [
+  ['table','Table','Tables'],['tableextension','Table extension','Table extensions'],
+  ['page','Page','Pages'],['pageextension','Page extension','Page extensions'],['pagecustomization','Page customization','Page customizations'],
+  ['codeunit','Codeunit','Codeunits'],['report','Report','Reports'],['reportextension','Report extension','Report extensions'],
+  ['query','Query','Queries'],['xmlport','XmlPort','XmlPorts'],['enum','Enum','Enums'],['enumextension','Enum extension','Enum extensions'],
+  ['interface','Interface','Interfaces'],['controladdin','Control add-in','Control add-ins'],
+  ['permissionset','Permission set','Permission sets'],['permissionsetextension','Permission set extension','Permission set extensions'],
+  ['profile','Profile','Profiles'],['profileextension','Profile extension','Profile extensions'],['entitlement','Entitlement','Entitlements'],
+  ['other','AL file','Other AL files'],['file','File','Package files']
+];
+const TYPE = Object.fromEntries(TYPE_INFO.map((t, i) => [t[0], { order: i, one: t[1], many: t[2] }]));
+const SYM_TYPES = {
+  Tables:'table', TableExtensions:'tableextension', Pages:'page', PageExtensions:'pageextension', PageCustomizations:'pagecustomization',
+  Codeunits:'codeunit', Reports:'report', ReportExtensions:'reportextension', Queries:'query', XmlPorts:'xmlport',
+  EnumTypes:'enum', EnumExtensionTypes:'enumextension', Interfaces:'interface', ControlAddIns:'controladdin',
+  PermissionSets:'permissionset', PermissionSetExtensions:'permissionsetextension', Profiles:'profile', ProfileExtensions:'profileextension', Entitlements:'entitlement'
+};
+const OBJ_RE = /^﻿?(tableextension|table|pageextension|pagecustomization|page|codeunit|reportextension|report|xmlport|query|enumextension|enum|interface|permissionsetextension|permissionset|controladdin|profileextension|profile|entitlement)\b[ \t]+(?:(\d+)[ \t]+)?("(?:[^"\r\n]|"")*"|[A-Za-z_]\w*)/gim;
+const BIN_RE = /\.(zip|png|jpe?g|gif|bmp|ico|dll|exe|pdf|woff2?|ttf|otf|eot|navx|app|bin|mp4|svgz)$/i;
+const STATUS = ['added','removed','modified','same'];
+const GLYPH = { added:'+', removed:'−', modified:'≠', same:'=' };
+const LABEL = { added:'Added', removed:'Removed', modified:'Modified', same:'Same' };
+
+/* ---------- state ---------- */
+const S = {
+  L: null, R: null, sample: false, err: { L: '', R: '' }, busy: { L: false, R: false },
+  pairs: [], sel: null, filter: { added: true, removed: true, modified: true, same: true }, q: '',
+  closed: new Set(), opts: { ws: false, cs: false, fold: false }, tab: 'code', expanded: new Set(), block: -1, blocks: 0
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const inFrame = (() => { try { return window.self !== window.top; } catch { return true; } })();
+
+/* ---------- package reading ---------- */
+function normPath(p) {
+  let s = p;
+  for (let k = 0; k < 4; k++) { try { const d = decodeURIComponent(s); if (d === s) break; s = d; } catch { break; } }
+  return s.replace(/\\/g, '/');
+}
+const stripBom = t => t.charCodeAt(0) === 0xFEFF ? t.slice(1) : t;
+
+async function readPackage(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let off = -1;
+  for (let i = 0, n = Math.min(buf.length - 4, 8192); i < n; i++) {
+    if (buf[i] === 0x50 && buf[i+1] === 0x4B && buf[i+2] === 3 && buf[i+3] === 4) { off = i; break; }
+  }
+  if (off < 0) throw new Error('No readable contents found. This may be a runtime package or an encrypted AppSource app.');
+  const zip = await JSZip.loadAsync(buf.subarray(off));
+  const files = [];
+  for (const [p, e] of Object.entries(zip.files)) {
+    if (e.dir) continue;
+    const path = normPath(p);
+    const bin = BIN_RE.test(path);
+    files.push({ path, bin, data: bin ? await e.async('uint8array') : stripBom(await e.async('string')) });
+  }
+  return buildApp(file.name, files);
+}
+
+function parseManifest(xml) {
+  const m = { attrs: {}, idRanges: [], deps: [], features: [], rep: {}, build: {} };
+  if (!xml) return m;
+  try {
+    const d = new DOMParser().parseFromString(xml, 'application/xml');
+    const attrsOf = el => el ? Object.fromEntries([...el.attributes].map(a => [a.name, a.value])) : {};
+    m.attrs = attrsOf(d.getElementsByTagName('App')[0]);
+    m.idRanges = [...d.getElementsByTagName('IdRange')].map(e => `${e.getAttribute('MinObjectId')}..${e.getAttribute('MaxObjectId')}`);
+    m.deps = [...d.getElementsByTagName('Dependency')].map(attrsOf);
+    m.features = [...d.getElementsByTagName('Feature')].map(e => e.textContent.trim());
+    m.rep = attrsOf(d.getElementsByTagName('ResourceExposurePolicy')[0]);
+    m.build = attrsOf(d.getElementsByTagName('Build')[0]);
+  } catch {}
+  return m;
+}
+
+function collectSymbols(node, out) {
+  if (!node || typeof node !== 'object') return out;
+  for (const [k, type] of Object.entries(SYM_TYPES)) {
+    if (Array.isArray(node[k])) for (const s of node[k]) out.push({ type, sym: s });
+  }
+  if (Array.isArray(node.Namespaces)) for (const n of node.Namespaces) collectSymbols(n, out);
+  return out;
+}
+
+function parseAlObjects(text, path) {
+  const found = [];
+  OBJ_RE.lastIndex = 0;
+  let m;
+  while ((m = OBJ_RE.exec(text))) {
+    let name = m[3];
+    if (name[0] === '"') name = name.slice(1, -1).replace(/""/g, '"');
+    found.push({ index: m.index, type: m[1].toLowerCase(), id: m[2] ? +m[2] : null, name });
+  }
+  if (!found.length) return [{ type: 'other', id: null, name: path.split('/').pop(), text }];
+  return found.map((f, i) => ({
+    type: f.type, id: f.id, name: f.name,
+    text: text.slice(i === 0 ? 0 : f.index, i + 1 < found.length ? found[i+1].index : text.length).replace(/\s+$/, '') + '\n'
+  }));
+}
+
+function buildApp(fileName, files) {
+  const byPath = new Map(files.map(f => [f.path.toLowerCase(), f]));
+  const manifest = parseManifest(byPath.get('navxmanifest.xml')?.data);
+  let symRoot = null;
+  const symFile = byPath.get('symbolreference.json');
+  if (symFile) { try { symRoot = JSON.parse(symFile.data); } catch {} }
+  const symList = collectSymbols(symRoot, []);
+  const symMap = new Map();
+  for (const s of symList) symMap.set(s.type + '|' + String(s.sym.Name || '').toLowerCase(), s);
+
+  const objects = [], others = [];
+  for (const f of files) {
+    if (!f.bin && /\.al$/i.test(f.path)) {
+      for (const o of parseAlObjects(f.data, f.path)) {
+        const k = o.type + '|' + o.name.toLowerCase();
+        const s = symMap.get(k);
+        if (s) symMap.delete(k);
+        objects.push({ ...o, path: f.path, sym: s ? s.sym : null, fromSymbols: false });
+      }
+    } else {
+      let data = f.data;
+      if (!f.bin && /\.json$/i.test(f.path)) { try { data = JSON.stringify(JSON.parse(data), null, 2); } catch {} }
+      others.push({ type: 'file', id: null, name: f.path, path: f.path, bin: f.bin, text: f.bin ? null : data, bytes: f.bin ? data : null });
+    }
+  }
+  const hasSource = objects.length > 0;
+  for (const s of symMap.values()) {
+    objects.push({ type: s.type, id: s.sym.Id ?? null, name: s.sym.Name || '(unnamed)', path: s.sym.ReferenceSourceFileName || '', sym: s.sym, fromSymbols: true, text: outline(s.type, s.sym) });
+  }
+  return { fileName, manifest, objects, files: others, hasSource, symbolCount: symList.length };
+}
+
+/* ---------- symbol helpers ---------- */
+function tdName(td) {
+  if (!td) return '';
+  let s = td.Name || '';
+  if (td.Subtype && td.Subtype.Name) s += ' "' + td.Subtype.Name + '"';
+  if (Array.isArray(td.TypeArguments) && td.TypeArguments.length) s += ' of [' + td.TypeArguments.map(tdName).join(', ') + ']';
+  if (td.Temporary) s += ' temporary';
+  return s;
+}
+const propsStr = arr => (arr || []).map(p => `${p.Name} = ${p.Value}`).join('; ');
+const sig = m => `(${(m.Parameters || []).map(p => (p.IsVar ? 'var ' : '') + p.Name + ': ' + tdName(p.TypeDefinition)).join('; ')})` + (m.ReturnTypeDefinition ? ': ' + tdName(m.ReturnTypeDefinition) : '');
+const q = n => /^[A-Za-z_]\w*$/.test(n) ? n : `"${n}"`;
+const NEST = ['Controls','Actions','DataItems','Columns','Elements','Nodes'];
+
+function flatten(arr, out = [], depth = 0) {
+  for (const c of arr || []) {
+    out.push({ ...c, _depth: depth });
+    for (const k of NEST) if (Array.isArray(c[k])) flatten(c[k], out, depth + 1);
+  }
+  return out;
+}
+
+function outline(type, s) {
+  const L = ['// Generated from SymbolReference.json (this package does not include AL source)', `${type}${s.Id != null ? ' ' + s.Id : ''} ${q(s.Name || '')}`, '{'];
+  for (const p of s.Properties || []) L.push(`    ${p.Name} = ${p.Value};`);
+  for (const f of s.Fields || []) L.push(`    field(${f.Id}; ${q(f.Name)}; ${tdName(f.TypeDefinition)})${f.Properties?.length ? '  // ' + propsStr(f.Properties) : ''}`);
+  for (const k of s.Keys || []) L.push(`    key(${q(k.Name || '')}; ${(k.FieldNames || []).map(q).join(', ')})`);
+  for (const v of s.Values || []) L.push(`    value(${v.Id}; ${q(v.Name)})`);
+  for (const v of s.Variables || []) L.push(`    var ${q(v.Name)}: ${tdName(v.TypeDefinition)};`);
+  for (const m of s.Methods || []) L.push(`    procedure ${q(m.Name)}${sig(m)};`);
+  for (const e of s.Events || []) L.push(`    event ${q(e.Name)}${sig(e)};`);
+  for (const c of flatten(s.Controls)) L.push(`    ${'    '.repeat(c._depth)}control ${q(c.Name || '')}${c.TypeDefinition ? ': ' + tdName(c.TypeDefinition) : ''}`);
+  for (const a of flatten(s.Actions)) L.push(`    ${'    '.repeat(a._depth)}action ${q(a.Name || '')}`);
+  for (const p of s.Permissions || []) L.push(`    permission ${JSON.stringify(p)}`);
+  L.push('}');
+  return L.join('\n') + '\n';
+}
+
+const shallow = m => Object.fromEntries(Object.entries(m).filter(([k, v]) => k !== '_depth' && !(NEST.includes(k) && Array.isArray(v))));
+const SEC = {
+  Properties: { title: 'Object properties', key: m => m.Name, item: m => m.Name, val: m => String(m.Value) },
+  Fields: { title: 'Fields', key: m => 'id' + m.Id, item: m => `${m.Id}  ${q(m.Name)}`, val: m => [tdName(m.TypeDefinition), propsStr(m.Properties)].filter(Boolean).join('  ·  ') },
+  Keys: { title: 'Keys', key: m => m.Name, item: m => m.Name, val: m => [(m.FieldNames || []).join(', '), propsStr(m.Properties)].filter(Boolean).join('  ·  ') },
+  Values: { title: 'Enum values', key: m => 'id' + m.Id, item: m => `${m.Id}  ${q(m.Name)}`, val: m => propsStr(m.Properties) || '—' },
+  Methods: { title: 'Procedures', key: m => m.Name.toLowerCase(), item: m => m.Name, val: m => sig(m) + (m.Properties?.length ? '  ·  ' + propsStr(m.Properties) : '') },
+  Events: { title: 'Events', key: m => m.Name.toLowerCase(), item: m => m.Name, val: m => sig(m) },
+  Variables: { title: 'Global variables', key: m => m.Name.toLowerCase(), item: m => m.Name, val: m => tdName(m.TypeDefinition) },
+  Controls: { title: 'Page controls', flat: true, key: m => String(m.Name).toLowerCase(), item: m => '  '.repeat(m._depth) + m.Name, val: m => [tdName(m.TypeDefinition), propsStr(m.Properties)].filter(Boolean).join('  ·  ') || '—' },
+  Actions: { title: 'Actions', flat: true, key: m => String(m.Name).toLowerCase(), item: m => '  '.repeat(m._depth) + m.Name, val: m => propsStr(m.Properties) || '—' }
+};
+const genericSec = k => ({ title: k.replace(/([a-z])([A-Z])/g, '$1 $2'), flat: NEST.includes(k), key: m => m.Name != null ? String(m.Name).toLowerCase() : m.Id != null ? 'id' + m.Id : JSON.stringify(shallow(m)), item: m => m.Name ?? (m.Id != null ? '#' + m.Id : JSON.stringify(shallow(m)).slice(0, 80)), val: m => JSON.stringify(shallow(m)) });
+
+function membersMap(arr, cfg) {
+  const map = new Map(), seen = {};
+  for (const m of cfg.flat ? flatten(arr) : (arr || [])) {
+    let k = cfg.key(m);
+    seen[k] = (seen[k] || 0) + 1;
+    if (seen[k] > 1) k += '#' + seen[k];
+    map.set(k, m);
+  }
+  return map;
+}
+
+function structureDiff(a, b) {
+  const keys = new Set();
+  for (const s of [a, b]) if (s) for (const [k, v] of Object.entries(s)) if (Array.isArray(v) && (v.length === 0 || typeof v[0] === 'object')) keys.add(k);
+  const order = Object.keys(SEC);
+  const list = [...keys].sort((x, y) => (order.indexOf(x) + 1 || 99) - (order.indexOf(y) + 1 || 99) || x.localeCompare(y));
+  return list.map(k => {
+    const cfg = SEC[k] || genericSec(k);
+    return { title: cfg.title, ...diffMaps(membersMap(a?.[k], cfg), membersMap(b?.[k], cfg), cfg.item, cfg.val) };
+  });
+}
+
+function diffMaps(ma, mb, item, val) {
+  const rows = []; let same = 0;
+  for (const [k, x] of ma) {
+    const y = mb.get(k);
+    if (!y) rows.push({ st: 'removed', item: item(x), l: val(x), r: '' });
+    else { const vx = val(x), vy = val(y); if (vx !== vy || item(x) !== item(y)) rows.push({ st: 'modified', item: item(x) === item(y) ? item(y) : `${item(x)} → ${item(y)}`, l: vx, r: vy }); else same++; }
+  }
+  for (const [k, y] of mb) if (!ma.has(k)) rows.push({ st: 'added', item: item(y), l: '', r: val(y) });
+  return { rows, same };
+}
+
+function manifestDiff(a, b) {
+  const kv = o => new Map(Object.entries(o || {}));
+  const list = arr => new Map((arr || []).map(x => [typeof x === 'string' ? x : (x.Id || x.Name), x]));
+  const ident = x => x, depVal = d => `${d.Publisher || ''} ${d.Name || ''} ≥ ${d.MinVersion || d.Version || ''}`.trim();
+  return [
+    keyedSection('App', a.attrs, b.attrs),
+    { title: 'Dependencies', ...diffMaps(list(a.deps), list(b.deps), d => d.Name || d.Id, depVal) },
+    { title: 'Object ID ranges', ...diffMaps(list(a.idRanges), list(b.idRanges), ident, ident) },
+    { title: 'Features', ...diffMaps(list(a.features), list(b.features), ident, ident) },
+    keyedSection('Resource exposure policy', a.rep, b.rep),
+    keyedSection('Build', a.build, b.build)
+  ];
+}
+// attribute-style sections: each row is labelled with the attribute name
+function keyedSection(title, a, b) {
+  const ma = new Map(Object.entries(a || {})), mb = new Map(Object.entries(b || {}));
+  const rows = []; let same = 0;
+  for (const [k, v] of ma) { if (!mb.has(k)) rows.push({ st: 'removed', item: k, l: v, r: '' }); else if (mb.get(k) !== v) rows.push({ st: 'modified', item: k, l: v, r: mb.get(k) }); else same++; }
+  for (const [k, v] of mb) if (!ma.has(k)) rows.push({ st: 'added', item: k, l: '', r: v });
+  return { title, rows, same };
+}
+
+/* ---------- pairing ---------- */
+function normLine(l) {
+  if (S.opts.ws) l = l.replace(/\s+/g, ' ').trim();
+  if (S.opts.cs) l = l.toLowerCase();
+  return l;
+}
+const normText = t => t == null ? null : t.split(/\r?\n/).map(normLine).join('\n').replace(/\n+$/, '');
+
+function pairApps(A, B) {
+  const pairs = [];
+  const mk = (L, R, kind) => ({ kind, type: (R || L).type, L, R, id: (R || L).id, name: (R || L).name });
+  const match = (la, ra, kind, keyFns) => {
+    const used = new Set(); let pending = la.slice();
+    for (const kf of keyFns) {
+      const idx = new Map();
+      ra.forEach((o, i) => { const k = kf(o); if (k != null && !used.has(i) && !idx.has(k)) idx.set(k, i); });
+      const rest = [];
+      for (const o of pending) {
+        const k = kf(o), i = k != null ? idx.get(k) : undefined;
+        if (i != null && !used.has(i)) { used.add(i); pairs.push(mk(o, ra[i], kind)); } else rest.push(o);
+      }
+      pending = rest;
+    }
+    for (const o of pending) pairs.push(mk(o, null, kind));
+    ra.forEach((o, i) => { if (!used.has(i)) pairs.push(mk(null, o, kind)); });
+  };
+  match(A.objects, B.objects, 'object', [o => o.type + '|' + o.name.toLowerCase(), o => o.id != null ? o.type + '|' + o.id : null]);
+  match(A.files, B.files, 'file', [o => o.path.toLowerCase()]);
+  pairs.sort((x, y) => TYPE[x.type].order - TYPE[y.type].order || (x.id ?? 1e12) - (y.id ?? 1e12) || x.name.localeCompare(y.name));
+  pairs.forEach((p, i) => p.i = i);
+  return pairs;
+}
+
+function bytesEq(a, b) { if (a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+function computeStatuses() {
+  for (const p of S.pairs) {
+    if (!p.L) p.status = 'added';
+    else if (!p.R) p.status = 'removed';
+    else if (p.L.bin || p.R.bin) p.status = (p.L.bin && p.R.bin && bytesEq(p.L.bytes, p.R.bytes)) ? 'same' : 'modified';
+    else p.status = normText(p.L.text) === normText(p.R.text) && p.L.name === p.R.name && p.L.id === p.R.id ? 'same' : 'modified';
+  }
+}
+
+/* ---------- AL / generic highlighting ---------- */
+const KW = new Set(('begin end if then else case of for to downto do while repeat until exit var procedure trigger local internal protected true false not and or xor div mod with in ' +
+  'table tableextension page pageextension pagecustomization codeunit report reportextension xmlport query enum enumextension interface permissionset permissionsetextension controladdin profile entitlement ' +
+  'field fields key keys area group part systempart action actions layout dataitem dataset column requestpage rendering labels value namespace using extends implements foreach break continue temporary ' +
+  'addfirst addlast addafter addbefore modify movefirst movelast moveafter movebefore cuegroup repeater fieldgroup fieldgroups views view separator customaction fileuploadaction label event elements schema textelement fieldelement tableelement fieldattribute textattribute').split(' '));
+const TY = new Set(('record integer decimal text code boolean date time datetime guid option biginteger duration char byte blob media mediaset recordid recordref fieldref keyref ' +
+  'jsonobject jsonarray jsontoken jsonvalue httpclient httpcontent httpheaders httprequestmessage httpresponsemessage textbuilder list dictionary instream outstream errorinfo notification dialog ' +
+  'secrettext filterpagebuilder xmldocument xmlelement xmlnode xmlnodelist xmlattribute variant action testpage').split(' '));
+
+function tokenize(lines, lang) {
+  const out = []; let inBlock = false, inXmlC = false;
+  for (const line of lines) {
+    const toks = [];
+    if (line.length > 4000) { out.push(toks); continue; }
+    let i = 0; const n = line.length;
+    while (i < n) {
+      if (inBlock) { const e = line.indexOf('*/', i); const end = e < 0 ? n : e + 2; toks.push([i, end, 'c']); i = end; if (e >= 0) inBlock = false; continue; }
+      if (inXmlC) { const e = line.indexOf('-->', i); const end = e < 0 ? n : e + 3; toks.push([i, end, 'c']); i = end; if (e >= 0) inXmlC = false; continue; }
+      const ch = line[i], nx = line[i+1];
+      if (lang !== 'xml' && ch === '/' && nx === '/') { toks.push([i, n, 'c']); break; }
+      if (lang !== 'xml' && ch === '/' && nx === '*') { inBlock = true; continue; }
+      if (lang === 'xml' && line.startsWith('<!--', i)) { inXmlC = true; continue; }
+      if (ch === "'" && lang !== 'xml') {
+        let j = i + 1;
+        while (j < n) { if (line[j] === "'") { if (lang === 'al' && line[j+1] === "'") { j += 2; continue; } break; } if (line[j] === '\\' && lang !== 'al') j++; j++; }
+        toks.push([i, Math.min(j + 1, n), 's']); i = j + 1; continue;
+      }
+      if (ch === '"') {
+        let j = i + 1;
+        while (j < n && line[j] !== '"') { if (line[j] === '\\' && lang !== 'al') j++; j++; }
+        toks.push([i, Math.min(j + 1, n), lang === 'al' ? 'q' : 's']); i = j + 1; continue;
+      }
+      if (/[0-9]/.test(ch) && !/[\w]/.test(line[i-1] || '')) { const m = /^\d+(\.\d+)?/.exec(line.slice(i, i + 40)); toks.push([i, i + m[0].length, 'n']); i += m[0].length; continue; }
+      if (/[A-Za-z_]/.test(ch)) {
+        const m = /^[A-Za-z_]\w*/.exec(line.slice(i, i + 80)); const w = m[0].toLowerCase();
+        if (lang === 'al') { if (KW.has(w)) toks.push([i, i + w.length, 'k']); else if (TY.has(w)) toks.push([i, i + w.length, 'y']); }
+        else if (lang === 'js' && /^(function|return|const|let|var|if|else|for|while|new|this|class|true|false|null|undefined|typeof|async|await)$/.test(w)) toks.push([i, i + w.length, 'k']);
+        i += m[0].length; continue;
+      }
+      i++;
+    }
+    out.push(toks);
+  }
+  return out;
+}
+function langOf(p) {
+  if (p.kind === 'object') return 'al';
+  const n = p.name.toLowerCase();
+  if (/\.(js|ts|json)$/.test(n)) return 'js';
+  if (/\.(xml|xlf|html?|svg|rdlc|rdl)$/.test(n)) return 'xml';
+  if (/\.css$/.test(n)) return 'css';
+  return 'txt';
+}
+
+function paint(text, toks, marks) {
+  if (!text) return ' ';
+  if ((!toks || !toks.length) && (!marks || !marks.length)) return esc(text);
+  const n = text.length, cls = new Array(n).fill(''), mk = new Uint8Array(n);
+  for (const [a, b, c] of toks || []) for (let i = a; i < b && i < n; i++) cls[i] = c;
+  for (const [a, b] of marks || []) for (let i = a; i < b && i < n; i++) mk[i] = 1;
+  let html = '', i = 0;
+  while (i < n) {
+    let j = i + 1;
+    while (j < n && cls[j] === cls[i] && mk[j] === mk[i]) j++;
+    let seg = esc(text.slice(i, j));
+    if (cls[i]) seg = `<span class="${cls[i]}">${seg}</span>`;
+    if (mk[i]) seg = `<mark>${seg}</mark>`;
+    html += seg; i = j;
+  }
+  return html;
+}
+
+/* ---------- diff rows ---------- */
+function buildRows(A, B) {
+  const parts = Diff.diffArrays(A.map(normLine), B.map(normLine));
+  const rows = []; let i = 0, j = 0;
+  for (let k = 0; k < parts.length; k++) {
+    const c = parts[k], cn = c.value.length;
+    if (!c.added && !c.removed) { for (let x = 0; x < cn; x++) rows.push({ t: 'eq', l: i++, r: j++ }); }
+    else if (c.removed) {
+      const nx = parts[k+1];
+      if (nx && nx.added) {
+        const nn = nx.value.length, m = Math.max(cn, nn);
+        for (let x = 0; x < m; x++) { const hl = x < cn, hr = x < nn; rows.push({ t: hl && hr ? 'chg' : hl ? 'del' : 'add', l: hl ? i + x : null, r: hr ? j + x : null }); }
+        i += cn; j += nn; k++;
+      } else for (let x = 0; x < cn; x++) rows.push({ t: 'del', l: i++, r: null });
+    } else for (let x = 0; x < cn; x++) rows.push({ t: 'add', l: null, r: j++ });
+  }
+  let b = -1;
+  rows.forEach((r, x) => { if (r.t !== 'eq') { if (x === 0 || rows[x-1].t === 'eq') b++; r.b = b; } });
+  return { rows, blocks: b + 1 };
+}
+
+function intraline(a, b) {
+  if (a.length > 3000 || b.length > 3000) return [[[0, a.length]], [[0, b.length]]];
+  const parts = Diff.diffWordsWithSpace(a, b, { ignoreCase: S.opts.cs });
+  const ml = [], mr = []; let pl = 0, pr = 0;
+  for (const p of parts) {
+    const len = p.value.length;
+    if (p.removed) { if (!S.opts.ws || p.value.trim()) ml.push([pl, pl + len]); pl += len; }
+    else if (p.added) { if (!S.opts.ws || p.value.trim()) mr.push([pr, pr + len]); pr += len; }
+    else { pl += len; pr += len; }
+  }
+  return [ml, mr];
+}
+
+/* ---------- rendering: slots ---------- */
+function verCmp(a, b) {
+  const x = String(a || '').split('.').map(Number), y = String(b || '').split('.').map(Number);
+  for (let i = 0; i < 4; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; }
+  return 0;
+}
+function renderSlot(side) {
+  const el = $('slot' + side), app = S[side];
+  const tag = side === 'L' ? 'Left · older' : 'Right · newer';
+  el.classList.toggle('filled', !!app);
+  if (S.busy[side]) { el.innerHTML = `<div class="info"><span class="side-tag">${tag}</span><span class="pkg-meta">Reading package…</span></div>`; return; }
+  if (!app) {
+    el.innerHTML = `<div class="info"><span class="side-tag">${tag}</span><span class="pkg-name">Drop a .app file here</span>` +
+      (S.err[side] ? `<span class="pkg-err">${esc(S.err[side])}</span>` : `<span class="pkg-meta">or choose one from your computer</span>`) +
+      `</div><div class="acts"><button class="btn primary" type="button" data-pick="${side}">Choose .app</button></div>`;
+    return;
+  }
+  const a = app.manifest.attrs;
+  const meta = [a.Publisher, a.Runtime && 'Runtime ' + a.Runtime, a.Application && 'BC ' + a.Application, a.Target,
+    `${app.objects.length} objects`, app.hasSource ? 'source included' : 'symbols only (no source)'].filter(Boolean).join(' · ');
+  el.innerHTML = `<div class="info"><span class="side-tag">${tag}${S.sample ? ' · <em>example</em>' : ''}</span>
+    <span class="pkg-name" title="${esc(app.fileName)}">${esc(a.Name || app.fileName)}<span class="ver">${esc(a.Version || '')}</span></span>
+    <span class="pkg-meta" title="${esc(meta)}">${esc(meta)}</span></div>
+    <div class="acts"><button class="btn" type="button" data-pick="${side}">Replace</button></div>`;
+}
+
+/* ---------- rendering: tree ---------- */
+function visiblePairs() {
+  const q = S.q.trim().toLowerCase();
+  return S.pairs.filter(p => S.filter[p.status] && (!q ||
+    p.name.toLowerCase().includes(q) || String(p.id ?? '').includes(q) ||
+    (p.L && p.L.name.toLowerCase().includes(q)) || (p.L?.path || '').toLowerCase().includes(q) || (p.R?.path || '').toLowerCase().includes(q)));
+}
+function renderSummary() {
+  const c = { added: 0, removed: 0, modified: 0, same: 0 };
+  for (const p of S.pairs) c[p.status]++;
+  $('summary').innerHTML = STATUS.map(s => `<button type="button" class="chip ${s}" data-f="${s}" aria-pressed="${S.filter[s]}" title="Show or hide ${LABEL[s].toLowerCase()} items"><b>${c[s]}</b><span>${LABEL[s]}</span></button>`).join('');
+}
+function renderTree() {
+  const el = $('tree');
+  if (!S.pairs.length) { el.innerHTML = `<div class="tree-empty">${S.L || S.R ? 'Load the second package to see differences.' : 'Load two packages to start.'}</div>`; return; }
+  const vis = visiblePairs();
+  if (!vis.length) { el.innerHTML = '<div class="tree-empty">Nothing matches the current filters.</div>'; return; }
+  const groups = new Map();
+  for (const p of vis) { if (!groups.has(p.type)) groups.set(p.type, []); groups.get(p.type).push(p); }
+  let html = '';
+  for (const [type, list] of groups) {
+    const diffs = list.filter(p => p.status !== 'same').length, closed = S.closed.has(type);
+    html += `<div class="grp"><button type="button" class="ghead${closed ? ' closed' : ''}" data-g="${type}" aria-expanded="${!closed}"><span class="chev">▾</span>${TYPE[type].many}<span class="cnt">${diffs ? diffs + ' of ' : ''}${list.length}</span></button>`;
+    if (!closed) for (const p of list) {
+      const isFile = p.kind === 'file';
+      const nm = p.L && p.R && p.L.name !== p.R.name ? `${p.L.name} → ${p.R.name}` : p.name;
+      html += `<button type="button" class="row ${p.status}${isFile ? ' noid' : ''}${S.sel === p.i ? ' sel' : ''}" data-i="${p.i}" title="${esc(LABEL[p.status] + ': ' + nm)}"><span class="st ${p.status}">${GLYPH[p.status]}</span>${isFile ? '' : `<span class="id">${p.id ?? ''}</span>`}<span class="nm">${esc(nm)}</span></button>`;
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+/* ---------- rendering: view ---------- */
+function renderView() {
+  const v = $('view');
+  if (!S.L || !S.R) {
+    v.innerHTML = `<div class="msg"><h3>${S.L || S.R ? 'One more package' : 'Compare two .app packages'}</h3><p>Drop the older version on the left box and the newer version on the right. You can also drop both files at once anywhere on the page.</p><p>Everything runs in your browser. The files are never uploaded.</p></div>`;
+    return;
+  }
+  const p = S.pairs[S.sel];
+  if (!p) { v.innerHTML = '<div class="msg"><h3>Pick an item</h3><p>Choose an object from the list to see its differences.</p></div>'; return; }
+  const isManifest = p.kind === 'file' && /(^|\/)navxmanifest\.xml$/i.test(p.name);
+  const hasStruct = (p.kind === 'object' && (p.L?.sym || p.R?.sym)) || isManifest;
+  if (!hasStruct && S.tab === 'struct') S.tab = 'code';
+  const notes = [];
+  if (p.L && p.R && p.L.name !== p.R.name) notes.push(`Renamed from "${p.L.name}"`);
+  if (p.L && p.R && p.L.id !== p.R.id && p.kind === 'object') notes.push(`ID changed ${p.L.id} → ${p.R.id}`);
+  if ((p.L?.fromSymbols || p.R?.fromSymbols)) notes.push('No source in package: comparing symbol outline');
+  const pth = o => o ? esc(o.path || '') : '<i>not in this package</i>';
+  v.innerHTML = `
+    <div class="vhead">
+      <span class="typebadge">${TYPE[p.type].one}</span>
+      ${p.kind === 'object' && p.id != null ? `<span class="vid">${p.id}</span>` : ''}
+      <h2>${esc(p.name)}</h2>
+      <span class="pill ${p.status}">${LABEL[p.status]}</span>
+      ${notes.map(n => `<span class="note">${esc(n)}</span>`).join('')}
+      <div class="paths"><span title="${p.L ? esc(p.L.path) : ''}">L: ${pth(p.L)}</span><span title="${p.R ? esc(p.R.path) : ''}">R: ${pth(p.R)}</span></div>
+    </div>
+    <div class="vtools">
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab" role="tab" data-tab="code" aria-selected="${S.tab === 'code'}">${p.kind === 'object' ? 'Code' : 'Content'}</button>
+        <button type="button" class="tab" role="tab" data-tab="struct" aria-selected="${S.tab === 'struct'}" ${hasStruct ? '' : 'disabled title="No symbol information for this item"'}>Structure</button>
+      </div>
+      <div class="opts" ${S.tab === 'code' ? '' : 'hidden'}>
+        <label class="toggle"><input type="checkbox" id="optFold" ${S.opts.fold ? 'checked' : ''}>Only changes</label>
+        <label class="toggle"><input type="checkbox" id="optWs" ${S.opts.ws ? 'checked' : ''}>Ignore whitespace</label>
+        <label class="toggle"><input type="checkbox" id="optCs" ${S.opts.cs ? 'checked' : ''}>Ignore case</label>
+      </div>
+      <div class="nav" ${S.tab === 'code' ? '' : 'hidden'}>
+        <button class="btn" type="button" id="prevBtn" title="Previous change (P)">↑ Prev</button>
+        <span class="counter" id="counter"></span>
+        <button class="btn" type="button" id="nextBtn" title="Next change (N)">Next ↓</button>
+      </div>
+    </div>
+    <div id="notice"></div>
+    <div class="vbody" id="vbody"></div>`;
+  if (S.tab === 'struct') renderStructure(p, isManifest); else renderCode(p);
+}
+
+function renderCode(p) {
+  const body = $('vbody');
+  S.block = -1; S.blocks = 0;
+  if ((p.L && p.L.bin) || (p.R && p.R.bin)) {
+    const sz = o => o ? `${o.bytes ? o.bytes.length.toLocaleString() : 0} bytes` : 'not present';
+    body.innerHTML = `<div class="msg"><h3>Binary file</h3><p>Left: ${sz(p.L)}<br>Right: ${sz(p.R)}</p><p>${p.status === 'same' ? 'The two files are byte-for-byte identical.' : 'The files differ.'}</p></div>`;
+    updateCounter(); return;
+  }
+  const A = p.L ? p.L.text.replace(/\n$/, '').split(/\r?\n/) : [];
+  const B = p.R ? p.R.text.replace(/\n$/, '').split(/\r?\n/) : [];
+  const { rows, blocks } = buildRows(A, B);
+  S.blocks = blocks;
+  const lang = langOf(p), big = A.length + B.length > 60000;
+  const tA = big ? [] : tokenize(A, lang), tB = big ? [] : tokenize(B, lang);
+  let fold = S.opts.fold;
+  if (!fold && rows.length > 6000) { fold = true; $('notice').innerHTML = '<div class="notice">Large file: unchanged lines are collapsed.</div>'; }
+
+  // decide which eq rows are hidden behind fold rows
+  const CTX = 3, show = new Array(rows.length).fill(true);
+  if (fold) {
+    const near = new Array(rows.length).fill(false);
+    rows.forEach((r, x) => { if (r.t !== 'eq') for (let d = -CTX; d <= CTX; d++) if (rows[x+d]) near[x+d] = true; });
+    rows.forEach((r, x) => { if (r.t === 'eq' && !near[x]) show[x] = false; });
+  }
+  let html = '<table class="diff"><colgroup><col class="ln"><col><col class="ln"><col></colgroup><tbody>';
+  for (let x = 0; x < rows.length; x++) {
+    if (!show[x]) {
+      let y = x; while (y < rows.length && !show[y]) y++;
+      const key = p.i + ':' + x;
+      if (S.expanded.has(key)) { for (let z = x; z < y; z++) show[z] = true; }
+      else { html += `<tr class="fold"><td colspan="4"><button type="button" data-fold="${key}">⋯ ${y - x} unchanged line${y - x > 1 ? 's' : ''} · show</button></td></tr>`; x = y - 1; continue; }
+    }
+    const r = rows[x];
+    let ml = null, mr = null;
+    if (r.t === 'chg') [ml, mr] = intraline(A[r.l], B[r.r]);
+    const lc = r.l != null ? `<td class="ln">${r.l + 1}</td><td class="cd L">${paint(A[r.l], tA[r.l], ml)}</td>` : '<td class="ln"></td><td class="cd L gap"></td>';
+    const rc = r.r != null ? `<td class="ln">${r.r + 1}</td><td class="cd R">${paint(B[r.r], tB[r.r], mr)}</td>` : '<td class="ln"></td><td class="cd R gap"></td>';
+    html += `<tr class="r-${r.t}"${r.b != null ? ` data-b="${r.b}"` : ''}>${lc}${rc}</tr>`;
+  }
+  html += '</tbody></table>';
+  if (!A.length && !B.length) html = '<div class="msg"><p>Empty file.</p></div>';
+  body.innerHTML = `<div class="diffwrap" id="diffwrap">${html}</div><div class="ruler" id="ruler" aria-hidden="true"></div>`;
+  updateCounter();
+  requestAnimationFrame(drawRuler);
+}
+
+function drawRuler() {
+  const wrap = $('diffwrap'), ruler = $('ruler');
+  if (!wrap || !ruler) return;
+  const total = wrap.scrollHeight || 1; let html = '';
+  for (let b = 0; b < S.blocks; b++) {
+    const trs = wrap.querySelectorAll(`tr[data-b="${b}"]`); if (!trs.length) continue;
+    const first = trs[0], last = trs[trs.length - 1];
+    const top = first.offsetTop / total * 100, h = (last.offsetTop + last.offsetHeight - first.offsetTop) / total * 100;
+    const kinds = new Set([...trs].map(t => t.className.slice(2)));
+    const k = kinds.has('chg') || (kinds.has('del') && kinds.has('add')) ? 'chg' : kinds.has('del') ? 'del' : 'add';
+    html += `<i class="${k}" data-goto="${b}" style="top:${top}%;height:${h}%"></i>`;
+  }
+  ruler.innerHTML = html;
+}
+
+function updateCounter() {
+  const c = $('counter'); if (!c) return;
+  c.textContent = !S.blocks ? 'No changes' : S.block < 0 ? `${S.blocks} change${S.blocks > 1 ? 's' : ''}` : `${S.block + 1} of ${S.blocks}`;
+  $('prevBtn').disabled = !S.blocks; $('nextBtn').disabled = !S.blocks;
+}
+function goTo(b) {
+  const wrap = $('diffwrap'); if (!wrap || !S.blocks) return;
+  S.block = (b + S.blocks) % S.blocks;
+  wrap.querySelectorAll('tr.cur').forEach(t => t.classList.remove('cur'));
+  const trs = wrap.querySelectorAll(`tr[data-b="${S.block}"]`);
+  trs.forEach(t => t.classList.add('cur'));
+  if (trs[0]) wrap.scrollTo({ top: Math.max(0, trs[0].offsetTop - wrap.clientHeight / 3), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  updateCounter();
+}
+
+function renderStructure(p, isManifest) {
+  const sections = isManifest ? manifestDiff(S.L.manifest, S.R.manifest) : structureDiff(p.L?.sym, p.R?.sym);
+  const changed = sections.filter(s => s.rows.length);
+  let html = '';
+  if (!changed.length) html = `<p class="ok">No structural changes. ${sections.reduce((n, s) => n + s.same, 0)} members compared.</p>`;
+  for (const s of changed) {
+    html += `<h3>${esc(s.title)} <small>${s.rows.length} changed${s.same ? ` · ${s.same} unchanged` : ''}</small></h3>
+      <div class="tw"><table class="sd"><thead><tr><th style="width:90px">Change</th><th>Item</th><th>Left</th><th>Right</th></tr></thead><tbody>` +
+      s.rows.map(r => `<tr class="${r.st}"><td><span class="pill ${r.st}">${LABEL[r.st]}</span></td><td class="it">${esc(r.item)}</td><td class="v l">${esc(r.l)}</td><td class="v r">${esc(r.r)}</td></tr>`).join('') +
+      '</tbody></table></div>';
+  }
+  $('vbody').innerHTML = `<div class="struct">${html}</div>`;
+}
+/* ---------- orchestration ---------- */
+function recompute(keepSel) {
+  const prev = keepSel && S.sel != null ? S.pairs[S.sel] : null;
+  S.pairs = S.L && S.R ? pairApps(S.L, S.R) : [];
+  computeStatuses();
+  S.expanded.clear();
+  if (prev) { const m = S.pairs.find(p => p.type === prev.type && p.name === prev.name); S.sel = m ? m.i : null; }
+  if (S.sel == null || !S.pairs[S.sel]) { const f = S.pairs.find(p => p.status === 'modified') || S.pairs.find(p => p.status !== 'same') || S.pairs[0]; S.sel = f ? f.i : null; }
+  renderAll();
+}
+function renderAll() {
+  renderSlot('L'); renderSlot('R'); renderSummary(); renderTree(); renderView();
+  $('banner').hidden = !S.sample;
+  const none = !S.pairs.length;
+  $('copyBtn').disabled = none; $('csvBtn').disabled = none;
+}
+
+async function loadFile(side, file) {
+  if (S.sample) { S.sample = false; S.L = S.R = null; S.sel = null; }
+  S.busy[side] = true; S.err[side] = ''; renderSlot(side);
+  try { S[side] = await readPackage(file); }
+  catch (e) { S[side] = null; S.err[side] = `${file.name}: ${e.message || e}`; }
+  S.busy[side] = false;
+  S.sel = null; recompute(false);
+}
+async function loadTwo(files) {
+  if (S.sample) { S.sample = false; S.L = S.R = null; }
+  S.busy.L = S.busy.R = true; S.err.L = S.err.R = ''; renderSlot('L'); renderSlot('R');
+  const res = await Promise.all(files.slice(0, 2).map(f => readPackage(f).then(a => ({ a }), e => ({ e: `${f.name}: ${e.message || e}` }))));
+  S.busy.L = S.busy.R = false;
+  let [x, y] = res;
+  if (x.a && y.a && verCmp(x.a.manifest.attrs.Version, y.a.manifest.attrs.Version) > 0) [x, y] = [y, x];
+  S.L = x.a || null; S.err.L = x.e || ''; S.R = y.a || null; S.err.R = y.e || '';
+  S.sel = null; recompute(false);
+}
+
+function summaryRows() {
+  return S.pairs.map(p => [LABEL[p.status], TYPE[p.type].one, p.id ?? '', p.L && p.R && p.L.name !== p.R.name ? `${p.L.name} → ${p.R.name}` : p.name]);
+}
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 1800); }
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, i[data-goto]');
+  if (!t) return;
+  if (t.dataset.pick) $('file' + t.dataset.pick).click();
+  else if (t.dataset.f) { S.filter[t.dataset.f] = !S.filter[t.dataset.f]; renderSummary(); renderTree(); }
+  else if (t.dataset.g) { S.closed.has(t.dataset.g) ? S.closed.delete(t.dataset.g) : S.closed.add(t.dataset.g); renderTree(); }
+  else if (t.dataset.i != null) { S.sel = +t.dataset.i; renderTree(); renderView(); }
+  else if (t.dataset.tab) { if (!t.disabled) { S.tab = t.dataset.tab; renderView(); } }
+  else if (t.dataset.fold) { S.expanded.add(t.dataset.fold); const w = $('diffwrap'), st = w ? w.scrollTop : 0; renderCode(S.pairs[S.sel]); if ($('diffwrap')) $('diffwrap').scrollTop = st; }
+  else if (t.dataset.goto != null) goTo(+t.dataset.goto);
+  else if (t.id === 'nextBtn') goTo(S.block + 1);
+  else if (t.id === 'prevBtn') goTo(S.block < 0 ? S.blocks - 1 : S.block - 1);
+  else if (t.id === 'swapBtn') { [S.L, S.R] = [S.R, S.L]; [S.err.L, S.err.R] = [S.err.R, S.err.L]; recompute(true); }
+  else if (t.id === 'copyBtn') {
+    const a = S.L.manifest.attrs, b = S.R.manifest.attrs, c = { added: 0, removed: 0, modified: 0, same: 0 };
+    S.pairs.forEach(p => c[p.status]++);
+    const txt = [`BC App Compare`, `Left:  ${a.Name || S.L.fileName} ${a.Version || ''} (${a.Publisher || ''})`, `Right: ${b.Name || S.R.fileName} ${b.Version || ''} (${b.Publisher || ''})`,
+      `Added ${c.added} · Removed ${c.removed} · Modified ${c.modified} · Same ${c.same}`, '', 'Status\tType\tID\tName',
+      ...summaryRows().filter(r => r[0] !== 'Same').map(r => r.join('\t'))].join('\n');
+    const fallback = () => { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('Summary copied'); } catch { toast('Copy failed'); } ta.remove(); };
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Summary copied'), fallback); else fallback();
+  }
+  else if (t.id === 'csvBtn') {
+    const cell = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+    const csv = [['Status','Type','ID','Name'], ...summaryRows()].map(r => r.map(cell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' }));
+    const a = document.createElement('a'); a.href = url;
+    a.download = `compare_${(S.L.manifest.attrs.Version || 'L')}_vs_${(S.R.manifest.attrs.Version || 'R')}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'fileL' || t.id === 'fileR') { const f = t.files[0]; if (f) loadFile(t.id.slice(-1), f); t.value = ''; }
+  else if (t.id === 'optFold') { S.opts.fold = t.checked; renderCode(S.pairs[S.sel]); }
+  else if (t.id === 'optWs' || t.id === 'optCs') { S.opts[t.id === 'optWs' ? 'ws' : 'cs'] = t.checked; computeStatuses(); renderSummary(); renderTree(); renderView(); }
+});
+$('search').addEventListener('input', e => { S.q = e.target.value; renderTree(); });
+
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if ((k === 'n' || e.key === 'F8') && !e.shiftKey) { e.preventDefault(); goTo(S.block + 1); }
+  else if (k === 'p' || (e.key === 'F8' && e.shiftKey)) { e.preventDefault(); goTo(S.block < 0 ? S.blocks - 1 : S.block - 1); }
+  else if (k === 'j' || k === 'k') {
+    const vis = visiblePairs(); if (!vis.length) return;
+    let ix = vis.findIndex(p => p.i === S.sel); ix = k === 'j' ? Math.min(vis.length - 1, ix + 1) : Math.max(0, ix - 1);
+    S.sel = vis[ix].i; renderTree(); renderView();
+    document.querySelector('.row.sel')?.scrollIntoView({ block: 'nearest' });
+  }
+});
+
+// drag & drop: on a slot loads that side; anywhere else, two files fill both sides
+let dragDepth = 0;
+const isFileDrag = e => [...(e.dataTransfer?.types || [])].includes('Files');
+document.addEventListener('dragover', e => { if (!isFileDrag(e)) return; e.preventDefault(); const s = e.target.closest('.slot'); document.querySelectorAll('.slot').forEach(x => x.classList.toggle('drag', x === s)); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.querySelectorAll('.slot').forEach(x => x.classList.remove('drag')); });
+document.addEventListener('drop', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault(); document.querySelectorAll('.slot').forEach(x => x.classList.remove('drag'));
+  const files = [...e.dataTransfer.files]; if (!files.length) return;
+  const slot = e.target.closest('.slot');
+  if (files.length >= 2) loadTwo(files);
+  else if (slot) loadFile(slot.dataset.side, files[0]);
+  else loadFile(!S.L || S.sample ? 'L' : 'R', files[0]);
+});
+window.addEventListener('resize', () => requestAnimationFrame(drawRuler));
+if (inFrame) $('csvBtn').hidden = true;
+
+/* ---------- built-in example ---------- */
+function sampleApps() {
+  const man = v => `<Package xmlns="http://schemas.microsoft.com/navx/2015/manifest">
+  <App Id="7d1c5a2e-0b44-4c8e-9a51-3f6f2a9c1d10" Name="Customer Loyalty" Publisher="Example Publisher" Version="${v}" Platform="1.0.0.0" Application="${v === '1.0.0.0' ? '25.0.0.0' : '26.0.0.0'}" Runtime="${v === '1.0.0.0' ? '14.0' : '15.0'}" Target="Cloud" ShowMyCode="True" />
+  <IdRanges>
+    <IdRange MinObjectId="50200" MaxObjectId="50249" />
+  </IdRanges>
+  <Dependencies />
+  <Features>
+    <Feature>NOIMPLICITWITH</Feature>${v === '1.0.0.0' ? '' : '\n    <Feature>TRANSLATIONFILE</Feature>'}
+  </Features>
+  <ResourceExposurePolicy AllowDebugging="true" AllowDownloadingSource="${v === '1.0.0.0' ? 'true' : 'false'}" IncludeSourceInSymbolFile="true" />
+</Package>`;
+  const fld = (Id, Name, T, cap) => ({ Id, Name, TypeDefinition: { Name: T }, Properties: [{ Name: 'Caption', Value: cap || Name }] });
+  const meth = (Name, params, ret) => ({ Name, Parameters: params.map(([n, t, isVar]) => ({ Name: n, TypeDefinition: { Name: t }, IsVar: !!isVar })), ...(ret ? { ReturnTypeDefinition: { Name: ret } } : {}) });
+
+  const tableV1 = `table 50200 "Loyalty Points Entry"
+{
+    Caption = 'Loyalty Points Entry';
+    DataClassification = CustomerContent;
+
+    fields
+    {
+        field(1; "Entry No."; Integer)
+        {
+            Caption = 'Entry No.';
+            AutoIncrement = true;
+        }
+        field(2; "Customer No."; Code[20])
+        {
+            Caption = 'Customer No.';
+            TableRelation = Customer;
+        }
+        field(3; "Posting Date"; Date)
+        {
+            Caption = 'Posting Date';
+        }
+        field(4; Points; Integer)
+        {
+            Caption = 'Points';
+        }
+    }
+
+    keys
+    {
+        key(PK; "Entry No.")
+        {
+            Clustered = true;
+        }
+    }
+}
+`;
+  const tableV2 = `table 50200 "Loyalty Points Entry"
+{
+    Caption = 'Loyalty Points Entry';
+    DataClassification = CustomerContent;
+    LookupPageId = "Loyalty Points Entries";
+
+    fields
+    {
+        field(1; "Entry No."; Integer)
+        {
+            Caption = 'Entry No.';
+            AutoIncrement = true;
+        }
+        field(2; "Customer No."; Code[20])
+        {
+            Caption = 'Customer No.';
+            TableRelation = Customer;
+        }
+        field(3; "Posting Date"; Date)
+        {
+            Caption = 'Posting Date';
+        }
+        field(4; Points; Decimal)
+        {
+            Caption = 'Points';
+            DecimalPlaces = 0 : 2;
+        }
+        field(5; "Source Document No."; Code[20])
+        {
+            Caption = 'Source Document No.';
+        }
+    }
+
+    keys
+    {
+        key(PK; "Entry No.")
+        {
+            Clustered = true;
+        }
+        key(CustomerDate; "Customer No.", "Posting Date")
+        {
+            SumIndexFields = Points;
+        }
+    }
+}
+`;
+  const cuV1 = `codeunit 50200 "Loyalty Mgt."
+{
+    procedure AwardPoints(CustomerNo: Code[20]; SalesAmount: Decimal)
+    var
+        LoyaltyEntry: Record "Loyalty Points Entry";
+    begin
+        if SalesAmount <= 0 then
+            exit;
+
+        LoyaltyEntry.Init();
+        LoyaltyEntry."Customer No." := CustomerNo;
+        LoyaltyEntry."Posting Date" := WorkDate();
+        LoyaltyEntry.Points := SalesAmount div 10;
+        LoyaltyEntry.Insert(true);
+    end;
+
+    procedure GetBalance(CustomerNo: Code[20]): Integer
+    var
+        LoyaltyEntry: Record "Loyalty Points Entry";
+    begin
+        LoyaltyEntry.SetRange("Customer No.", CustomerNo);
+        LoyaltyEntry.CalcSums(Points);
+        exit(LoyaltyEntry.Points);
+    end;
+}
+`;
+  const cuV2 = `codeunit 50200 "Loyalty Mgt."
+{
+    procedure AwardPoints(CustomerNo: Code[20]; SalesAmount: Decimal; DocumentNo: Code[20])
+    var
+        LoyaltyEntry: Record "Loyalty Points Entry";
+    begin
+        if SalesAmount <= 0 then
+            exit;
+
+        LoyaltyEntry.Init();
+        LoyaltyEntry."Customer No." := CustomerNo;
+        LoyaltyEntry."Posting Date" := WorkDate();
+        LoyaltyEntry.Points := Round(SalesAmount / 10, 0.01);
+        LoyaltyEntry."Source Document No." := DocumentNo;
+        LoyaltyEntry.Insert(true);
+    end;
+
+    procedure GetBalance(CustomerNo: Code[20]): Decimal
+    var
+        LoyaltyEntry: Record "Loyalty Points Entry";
+    begin
+        LoyaltyEntry.SetRange("Customer No.", CustomerNo);
+        LoyaltyEntry.CalcSums(Points);
+        exit(LoyaltyEntry.Points);
+    end;
+
+    procedure RedeemPoints(CustomerNo: Code[20]; PointsToRedeem: Decimal)
+    var
+        LoyaltyEntry: Record "Loyalty Points Entry";
+        NotEnoughPointsErr: Label 'Customer %1 has only %2 points.', Comment = '%1 = Customer No., %2 = Balance';
+    begin
+        if GetBalance(CustomerNo) < PointsToRedeem then
+            Error(NotEnoughPointsErr, CustomerNo, GetBalance(CustomerNo));
+
+        LoyaltyEntry.Init();
+        LoyaltyEntry."Customer No." := CustomerNo;
+        LoyaltyEntry."Posting Date" := WorkDate();
+        LoyaltyEntry.Points := -PointsToRedeem;
+        LoyaltyEntry.Insert(true);
+    end;
+}
+`;
+  const page = extra => `page 50200 "Loyalty Points Entries"
+{
+    PageType = List;
+    ApplicationArea = All;
+    UsageCategory = History;
+    SourceTable = "Loyalty Points Entry";
+    Editable = false;
+
+    layout
+    {
+        area(Content)
+        {
+            repeater(Entries)
+            {
+                field("Entry No."; Rec."Entry No.") { }
+                field("Customer No."; Rec."Customer No.") { }
+                field("Posting Date"; Rec."Posting Date") { }
+                field(Points; Rec.Points) { }${extra ? '\n                field("Source Document No."; Rec."Source Document No.") { }' : ''}
+            }
+        }
+    }
+}
+`;
+  const legacy = `codeunit 50201 "Loyalty Legacy Import"
+{
+    procedure ImportFromCsv(var InStr: InStream)
+    var
+        LoyaltyEntry: Record "Loyalty Points Entry";
+        Line: Text;
+    begin
+        while not InStr.EOS do begin
+            InStr.ReadText(Line);
+            // TODO: parse the old loyalty CSV export
+        end;
+    end;
+}
+`;
+  const install = `codeunit 50202 "Loyalty Install"
+{
+    Subtype = Install;
+
+    trigger OnInstallAppPerCompany()
+    begin
+        // nothing to initialise yet
+    end;
+}
+`;
+  const ext = v2 => `tableextension 50200 "Loyalty Customer" extends Customer
+{
+    fields
+    {
+        field(50200; "Loyalty Tier"; ${v2 ? 'Enum "Loyalty Tier"' : 'Code[10]'})
+        {
+            Caption = 'Loyalty Tier';
+            DataClassification = CustomerContent;
+        }
+    }
+}
+`;
+  const tierEnum = `enum 50200 "Loyalty Tier"
+{
+    Extensible = true;
+
+    value(0; Bronze) { Caption = 'Bronze'; }
+    value(1; Silver) { Caption = 'Silver'; }
+    value(2; Gold) { Caption = 'Gold'; }
+}
+`;
+  const perm = v2 => `permissionset 50200 "LOYALTY"
+{
+    Assignable = true;
+    Caption = 'Customer Loyalty';
+    Permissions = tabledata "Loyalty Points Entry" = RIMD,
+        table "Loyalty Points Entry" = X,
+        codeunit "Loyalty Mgt." = X,${v2 ? '' : '\n        codeunit "Loyalty Legacy Import" = X,'}
+        page "Loyalty Points Entries" = X;
+}
+`;
+  const sym1 = {
+    Tables: [{ Id: 50200, Name: 'Loyalty Points Entry', Properties: [{ Name: 'DataClassification', Value: 'CustomerContent' }],
+      Fields: [fld(1, 'Entry No.', 'Integer'), fld(2, 'Customer No.', 'Code[20]'), fld(3, 'Posting Date', 'Date'), fld(4, 'Points', 'Integer')],
+      Keys: [{ Name: 'PK', FieldNames: ['Entry No.'] }] }],
+    Codeunits: [{ Id: 50200, Name: 'Loyalty Mgt.', Methods: [meth('AwardPoints', [['CustomerNo', 'Code[20]'], ['SalesAmount', 'Decimal']]), meth('GetBalance', [['CustomerNo', 'Code[20]']], 'Integer')] },
+      { Id: 50201, Name: 'Loyalty Legacy Import', Methods: [meth('ImportFromCsv', [['InStr', 'InStream', true]])] },
+      { Id: 50202, Name: 'Loyalty Install', Properties: [{ Name: 'Subtype', Value: 'Install' }] }],
+    Pages: [{ Id: 50200, Name: 'Loyalty Points Entries', Properties: [{ Name: 'PageType', Value: 'List' }, { Name: 'SourceTable', Value: 'Loyalty Points Entry' }],
+      Controls: [{ Name: 'Content', Controls: [{ Name: 'Entries', Controls: ['Entry No.', 'Customer No.', 'Posting Date', 'Points'].map(n => ({ Name: n })) }] }] }],
+    TableExtensions: [{ Id: 50200, Name: 'Loyalty Customer', Fields: [fld(50200, 'Loyalty Tier', 'Code[10]')] }],
+    PermissionSets: [{ Id: 50200, Name: 'LOYALTY' }]
+  };
+  const sym2 = JSON.parse(JSON.stringify(sym1));
+  const t2 = sym2.Tables[0];
+  t2.Properties.push({ Name: 'LookupPageId', Value: 'Loyalty Points Entries' });
+  t2.Fields[3] = { ...fld(4, 'Points', 'Decimal'), Properties: [{ Name: 'Caption', Value: 'Points' }, { Name: 'DecimalPlaces', Value: '0 : 2' }] };
+  t2.Fields.push(fld(5, 'Source Document No.', 'Code[20]'));
+  t2.Keys.push({ Name: 'CustomerDate', FieldNames: ['Customer No.', 'Posting Date'] });
+  sym2.Codeunits = [{ Id: 50200, Name: 'Loyalty Mgt.', Methods: [meth('AwardPoints', [['CustomerNo', 'Code[20]'], ['SalesAmount', 'Decimal'], ['DocumentNo', 'Code[20]']]), meth('GetBalance', [['CustomerNo', 'Code[20]']], 'Decimal'), meth('RedeemPoints', [['CustomerNo', 'Code[20]'], ['PointsToRedeem', 'Decimal']])] }, sym1.Codeunits[2]];
+  sym2.Pages[0].Controls[0].Controls[0].Controls.push({ Name: 'Source Document No.' });
+  sym2.TableExtensions[0].Fields[0].TypeDefinition = { Name: 'Enum', Subtype: { Name: 'Loyalty Tier' } };
+  sym2.EnumTypes = [{ Id: 50200, Name: 'Loyalty Tier', Values: [{ Id: 0, Name: 'Bronze' }, { Id: 1, Name: 'Silver' }, { Id: 2, Name: 'Gold' }] }];
+
+  const f = (path, data) => ({ path, bin: false, data });
+  const left = buildApp('Example Publisher_Customer Loyalty_1.0.0.0.app', [
+    f('NavxManifest.xml', man('1.0.0.0')), f('SymbolReference.json', JSON.stringify(sym1)),
+    f('src/Tables/LoyaltyPointsEntry.Table.al', tableV1), f('src/Pages/LoyaltyPointsEntries.Page.al', page(false)),
+    f('src/Codeunits/LoyaltyMgt.Codeunit.al', cuV1), f('src/Codeunits/LoyaltyLegacyImport.Codeunit.al', legacy),
+    f('src/Codeunits/LoyaltyInstall.Codeunit.al', install), f('src/TableExtensions/LoyaltyCustomer.TableExt.al', ext(false)),
+    f('src/PermissionSets/Loyalty.PermissionSet.al', perm(false))
+  ]);
+  const right = buildApp('Example Publisher_Customer Loyalty_1.1.0.0.app', [
+    f('NavxManifest.xml', man('1.1.0.0')), f('SymbolReference.json', JSON.stringify(sym2)),
+    f('src/Tables/LoyaltyPointsEntry.Table.al', tableV2), f('src/Pages/LoyaltyPointsEntries.Page.al', page(true)),
+    f('src/Codeunits/LoyaltyMgt.Codeunit.al', cuV2), f('src/Codeunits/LoyaltyInstall.Codeunit.al', install),
+    f('src/TableExtensions/LoyaltyCustomer.TableExt.al', ext(true)), f('src/Enums/LoyaltyTier.Enum.al', tierEnum),
+    f('src/PermissionSets/Loyalty.PermissionSet.al', perm(true))
+  ]);
+  return [left, right];
+}
+
+[S.L, S.R] = sampleApps();
+S.sample = true;
+recompute(false);
+})();
+</script>
+</body>
+</html>

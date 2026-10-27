@@ -1,0 +1,11 @@
+/* Responsive and accessibility overrides */
+@media (max-width:860px){
+  .app{height:auto;display:flex;flex-direction:column}
+  .slots{grid-template-columns:1fr}
+  .swap{justify-self:center;transform:rotate(90deg)}
+  .work{grid-template-columns:1fr}
+  .side{max-height:46vh}
+  .view{height:80vh}
+  .paths{grid-template-columns:1fr;gap:2px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
