@@ -2,7 +2,7 @@
 
 /* ---------- state ---------- */
 const S = {
-  L: null, R: null, sample: false, err: { L: '', R: '' }, busy: { L: false, R: false },
+  L: null, R: null, err: { L: '', R: '' }, busy: { L: false, R: false },
   pairs: [], sel: null, filter: { added: true, removed: true, modified: true, same: true }, q: '',
   closed: new Set(), opts: { ws: false, cs: false, fold: false }, tab: 'code', expanded: new Set(), block: -1, blocks: 0
 };

@@ -76,13 +76,13 @@ document.addEventListener('drop', e => {
     const appEntry = entries.find(en => en.isFile && /\.app$/i.test(en.name));
     const appFile = appEntry && [...e.dataTransfer.files].find(f => f.name === appEntry.name);
     if (appFile && !slot) { loadFile('L', appFile); loadFolder('R', dirs[0].name, listFromEntry(dirs[0])); }
-    else loadFolder(slot ? slot.dataset.side : (!S.L || S.sample ? 'L' : 'R'), dirs[0].name, listFromEntry(dirs[0]));
+    else loadFolder(slot ? slot.dataset.side : (!S.L ? 'L' : 'R'), dirs[0].name, listFromEntry(dirs[0]));
     return;
   }
   const files = [...e.dataTransfer.files]; if (!files.length) return;
   if (files.length >= 2) loadTwo(files);
   else if (slot) loadFile(slot.dataset.side, files[0]);
-  else loadFile(!S.L || S.sample ? 'L' : 'R', files[0]);
+  else loadFile(!S.L ? 'L' : 'R', files[0]);
 });
 window.addEventListener('resize', () => requestAnimationFrame(drawRuler));
 if (inFrame) $('csvBtn').hidden = true;

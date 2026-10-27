@@ -23,7 +23,7 @@ function renderSlot(side) {
     ? ['Source folder', app.fileName !== a.Name && app.fileName, a.Publisher, `${app.objects.length} objects in ${app.alFileCount} .al files`]
     : [a.Publisher, a.Runtime && 'Runtime ' + a.Runtime, a.Application && 'BC ' + a.Application, a.Target,
       `${app.objects.length} objects`, app.hasSource ? 'source included' : 'symbols only (no source)']).filter(Boolean).join(' · ');
-  el.innerHTML = `<div class="info"><span class="side-tag">${tag}${S.sample ? ' · <em>example</em>' : ''}${app.isFolder ? ' · <em>folder</em>' : ''}</span>
+  el.innerHTML = `<div class="info"><span class="side-tag">${tag}${app.isFolder ? ' · <em>folder</em>' : ''}</span>
     <span class="pkg-name" title="${esc(app.fileName)}">${esc(a.Name || app.fileName)}<span class="ver">${esc(a.Version || '')}</span></span>
     <span class="pkg-meta" title="${esc(meta)}">${esc(meta)}</span></div>
     <div class="acts"><button class="btn" type="button" data-pick="${side}">.app</button><button class="btn" type="button" data-pickdir="${side}">Folder</button></div>`;

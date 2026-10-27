@@ -12,14 +12,12 @@ function recompute(keepSel) {
 }
 function renderAll() {
   renderSlot('L'); renderSlot('R'); renderSummary(); renderTree(); renderView();
-  $('banner').hidden = !S.sample;
   const none = !S.pairs.length;
   $('copyBtn').disabled = none; $('csvBtn').disabled = none;
 }
 
 // read: async () => app; label is used in error messages
 async function loadSide(side, label, read) {
-  if (S.sample) { S.sample = false; S.L = S.R = null; S.sel = null; }
   S.busy[side] = true; S.err[side] = ''; renderSlot(side);
   try { S[side] = await read(); }
   catch (e) { S[side] = null; S.err[side] = `${label}: ${e.message || e}`; }
@@ -30,7 +28,6 @@ const loadFile = (side, file) => loadSide(side, file.name, () => readPackage(fil
 // list may be an array or a promise of one (drag & drop walks the folder asynchronously)
 const loadFolder = (side, name, list) => loadSide(side, name, async () => readFolder(name, await list));
 async function loadTwo(files) {
-  if (S.sample) { S.sample = false; S.L = S.R = null; }
   S.busy.L = S.busy.R = true; S.err.L = S.err.R = ''; renderSlot('L'); renderSlot('R');
   const res = await Promise.all(files.slice(0, 2).map(f => readPackage(f).then(a => ({ a }), e => ({ e: `${f.name}: ${e.message || e}` }))));
   S.busy.L = S.busy.R = false;

@@ -1,5 +1,5 @@
 /* Layout: compare workbench — two package slots on top, object tree on the left, aligned side-by-side diff on the right */
-.app{height:100%;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);gap:10px;padding-inline:16px;padding-block:12px 14px}
+.app{height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;padding-inline:16px;padding-block:12px 14px}
 
 .top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
@@ -27,8 +27,6 @@
 .swap{align-self:center;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:15px;display:grid;place-items:center}
 .swap:hover{border-color:var(--accent)}
 
-.banner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--accent-soft);border-radius:6px;padding:7px 12px;font-size:13px}
-.banner b{font-weight:600}
 
 .work{display:grid;grid-template-columns:330px minmax(0,1fr);gap:10px;min-height:0}
 .side,.view{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;min-height:0;display:flex;flex-direction:column}
