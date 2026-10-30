@@ -67,7 +67,8 @@ function parseAlObjects(text, path) {
   }));
 }
 
-function buildApp(fileName, files) {
+// raw: keep file text exactly as read (folder sides, so edits can be saved back in place)
+function buildApp(fileName, files, raw = false) {
   const byPath = new Map(files.map(f => [f.path.toLowerCase(), f]));
   const manifest = parseManifest(byPath.get('navxmanifest.xml')?.data);
   let symRoot = null;
@@ -88,7 +89,7 @@ function buildApp(fileName, files) {
       }
     } else {
       let data = f.data;
-      if (!f.bin && /\.json$/i.test(f.path)) { try { data = JSON.stringify(JSON.parse(data), null, 2); } catch {} }
+      if (!raw && !f.bin && /\.json$/i.test(f.path)) { try { data = JSON.stringify(JSON.parse(data), null, 2); } catch {} }
       others.push({ type: 'file', id: null, name: f.path, path: f.path, bin: f.bin, text: f.bin ? null : data, bytes: f.bin ? data : null });
     }
   }

@@ -26,7 +26,7 @@ function renderTree() {
     if (!closed) for (const p of list) {
       const isFile = p.kind === 'file';
       const nm = p.L && p.R && p.L.name !== p.R.name ? `${p.L.name} → ${p.R.name}` : p.name;
-      html += `<button type="button" class="row ${p.status}${isFile ? ' noid' : ''}${S.sel === p.i ? ' sel' : ''}" data-i="${p.i}" title="${esc(LABEL[p.status] + ': ' + nm)}"><span class="st ${p.status}">${GLYPH[p.status]}</span>${isFile ? '' : `<span class="id">${p.id ?? ''}</span>`}<span class="nm">${esc(nm)}</span></button>`;
+      html += `<button type="button" class="row ${p.status}${isFile ? ' noid' : ''}${isDirty(p) ? ' dirty' : ''}${S.sel === p.i ? ' sel' : ''}" data-i="${p.i}" title="${esc(LABEL[p.status] + ': ' + nm)}"><span class="st ${p.status}">${GLYPH[p.status]}</span>${isFile ? '' : `<span class="id">${p.id ?? ''}</span>`}<span class="nm">${esc(nm)}</span></button>`;
     }
     html += '</div>';
   }

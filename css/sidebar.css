@@ -25,3 +25,4 @@
 .st.added{background:var(--add-bg);color:var(--add)} .st.removed{background:var(--del-bg);color:var(--del)}
 .st.modified{background:var(--mod-bg);color:var(--mod)} .st.same{background:var(--same-bg);color:var(--same)}
 .tree-empty{padding:20px 14px;color:var(--muted);font-size:13px}
+.row.dirty .nm::after{content:' \25CF';color:var(--accent)}

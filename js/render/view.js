@@ -18,6 +18,8 @@ function renderView() {
   if (p.L && p.R && p.L.id !== p.R.id && p.kind === 'object') notes.push(`ID changed ${p.L.id} → ${p.R.id}`);
   if ((p.L?.fromSymbols || p.R?.fromSymbols)) notes.push('No source in package: comparing symbol outline');
   const pth = o => o ? esc(o.path || '') : '<i>not in this package</i>';
+  if (isDirty(p)) notes.push('Unsaved changes');
+  const showCode = S.tab === 'code';
   v.innerHTML = `
     <div class="vhead">
       <span class="typebadge">${TYPE[p.type].one}</span>
@@ -32,12 +34,13 @@ function renderView() {
         <button type="button" class="tab" role="tab" data-tab="code" aria-selected="${S.tab === 'code'}">${p.kind === 'object' ? 'Code' : 'Content'}</button>
         <button type="button" class="tab" role="tab" data-tab="struct" aria-selected="${S.tab === 'struct'}" ${hasStruct ? '' : 'disabled title="No symbol information for this item"'}>Structure</button>
       </div>
-      <div class="opts" ${S.tab === 'code' ? '' : 'hidden'}>
+      ${showCode ? mergeTools(p) : ''}
+      <div class="opts" ${showCode ? '' : 'hidden'}>
         <label class="toggle"><input type="checkbox" id="optFold" ${S.opts.fold ? 'checked' : ''}>Only changes</label>
         <label class="toggle"><input type="checkbox" id="optWs" ${S.opts.ws ? 'checked' : ''}>Ignore whitespace</label>
         <label class="toggle"><input type="checkbox" id="optCs" ${S.opts.cs ? 'checked' : ''}>Ignore case</label>
       </div>
-      <div class="nav" ${S.tab === 'code' ? '' : 'hidden'}>
+      <div class="nav" ${showCode ? '' : 'hidden'}>
         <button class="btn" type="button" id="prevBtn" title="Previous change (P)">↑ Prev</button>
         <span class="counter" id="counter"></span>
         <button class="btn" type="button" id="nextBtn" title="Next change (N)">Next ↓</button>
@@ -56,10 +59,13 @@ function renderCode(p) {
     body.innerHTML = `<div class="msg"><h3>Binary file</h3><p>Left: ${sz(p.L)}<br>Right: ${sz(p.R)}</p><p>${p.status === 'same' ? 'The two files are byte-for-byte identical.' : 'The files differ.'}</p></div>`;
     updateCounter(); return;
   }
-  const A = p.L ? p.L.text.replace(/\n$/, '').split(/\r?\n/) : [];
-  const B = p.R ? p.R.text.replace(/\n$/, '').split(/\r?\n/) : [];
+  // lines come through textOf(), so unsaved edits are included
+  const A = linesOf(p, 'L'), B = linesOf(p, 'R');
   const { rows, blocks } = buildRows(A, B);
-  S.blocks = blocks;
+  S.blocks = blocks; S.rows = rows;
+  // folder sides opened for writing are editable in place; the middle column holds per-change copy arrows
+  const ed = { L: canEdit('L') && !!p.L, R: canEdit('R') && !!p.R };
+  const arrows = (canTake(p, 'L') && p.L) || (canTake(p, 'R') && p.R), cols = arrows ? 5 : 4;
   const lang = langOf(p), big = A.length + B.length > 60000;
   const tA = big ? [] : tokenize(A, lang), tB = big ? [] : tokenize(B, lang);
   let fold = S.opts.fold;
@@ -72,20 +78,22 @@ function renderCode(p) {
     rows.forEach((r, x) => { if (r.t !== 'eq') for (let d = -CTX; d <= CTX; d++) if (rows[x+d]) near[x+d] = true; });
     rows.forEach((r, x) => { if (r.t === 'eq' && !near[x]) show[x] = false; });
   }
-  let html = '<table class="diff"><colgroup><col class="ln"><col><col class="ln"><col></colgroup><tbody>';
+  const cell = (side, idx, lines, toks, marks) => idx == null ? `<td class="ln"></td><td class="cd ${side} gap"></td>`
+    : ed[side] ? `<td class="ln">${idx + 1}</td><td class="cd ${side} ed${lineSelected(p, side, idx) ? ' lsel' : ''}" contenteditable="plaintext-only" spellcheck="false" data-side="${side}" data-ln="${idx}">${lines[idx] ? paint(lines[idx], toks[idx], marks) : '<br>'}</td>`
+    : `<td class="ln">${idx + 1}</td><td class="cd ${side}">${paint(lines[idx], toks[idx], marks)}</td>`;
+  let html = `<table class="diff"><colgroup><col class="ln"><col>${arrows ? '<col class="mg">' : ''}<col class="ln"><col></colgroup><tbody>`;
   for (let x = 0; x < rows.length; x++) {
     if (!show[x]) {
       let y = x; while (y < rows.length && !show[y]) y++;
       const key = p.i + ':' + x;
       if (S.expanded.has(key)) { for (let z = x; z < y; z++) show[z] = true; }
-      else { html += `<tr class="fold"><td colspan="4"><button type="button" data-fold="${key}">⋯ ${y - x} unchanged line${y - x > 1 ? 's' : ''} · show</button></td></tr>`; x = y - 1; continue; }
+      else { html += `<tr class="fold"><td colspan="${cols}"><button type="button" data-fold="${key}">⋯ ${y - x} unchanged line${y - x > 1 ? 's' : ''} · show</button></td></tr>`; x = y - 1; continue; }
     }
     const r = rows[x];
     let ml = null, mr = null;
     if (r.t === 'chg') [ml, mr] = intraline(A[r.l], B[r.r]);
-    const lc = r.l != null ? `<td class="ln">${r.l + 1}</td><td class="cd L">${paint(A[r.l], tA[r.l], ml)}</td>` : '<td class="ln"></td><td class="cd L gap"></td>';
-    const rc = r.r != null ? `<td class="ln">${r.r + 1}</td><td class="cd R">${paint(B[r.r], tB[r.r], mr)}</td>` : '<td class="ln"></td><td class="cd R gap"></td>';
-    html += `<tr class="r-${r.t}"${r.b != null ? ` data-b="${r.b}"` : ''}>${lc}${rc}</tr>`;
+    const mid = arrows ? `<td class="mg">${r.b != null && (x === 0 || rows[x-1].b !== r.b) ? blockArrows(p, r.b) : ''}</td>` : '';
+    html += `<tr class="r-${r.t}"${r.b != null ? ` data-b="${r.b}"` : ''}>${cell('L', r.l, A, tA, ml)}${mid}${cell('R', r.r, B, tB, mr)}</tr>`;
   }
   html += '</tbody></table>';
   if (!A.length && !B.length) html = '<div class="msg"><p>Empty file.</p></div>';
